@@ -1,0 +1,27 @@
+============================================================
+Test 1: Basic variable in snippet
+============================================================
+System: You are Nadia. A helpful AI Coach
+Assistant: How can I help you?
+
+============================================================
+Test 2: Nested snippets
+============================================================
+System: You are Nadia! the user wants general assistance.
+Assistant: I'm here to assist you.
+
+============================================================
+Test 3: Multiple variables
+============================================================
+System: You are Nadia, you are a helpful AI coach for developers. Be professional.
+Assistant: How can I assist your SWe needs today?
+
+============================================================
+Test 4: Nested variables and snippets
+============================================================
+System: You are Nadia, an AI assistant to Esmeralda, a senior software engineer. Help them accomplish their goal for this morning
+Assistant: Let's get started.
+
+============================================================
+All tests completed!
+============================================================
