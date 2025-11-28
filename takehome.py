@@ -8,23 +8,23 @@ from django.conf import settings
 if not settings.configured:
     settings.configure(
         DEBUG=True,
-        SECRET_KEY='test-secret-key',
+        SECRET_KEY="test-secret-key",
         INSTALLED_APPS=[
-            'django.contrib.contenttypes',
-            'django.contrib.auth',
+            "django.contrib.contenttypes",
+            "django.contrib.auth",
         ],
         DATABASES={
-            'default': {
-                'ENGINE': 'django.db.backends.sqlite3',
-                'NAME': ':memory:',
+            "default": {
+                "ENGINE": "django.db.backends.sqlite3",
+                "NAME": ":memory:",
             }
         },
-        DEFAULT_AUTO_FIELD='django.db.models.AutoField',
+        DEFAULT_AUTO_FIELD="django.db.models.AutoField",
     )
-    
-import django
-django.setup()
 
+import django
+
+django.setup()
 
 
 def default_chat_stream():
@@ -37,7 +37,7 @@ class Prompt(models.Model):
     first_message = models.TextField()  # Always an assistant message.
 
     class Meta:
-        app_label = 'test_app'
+        app_label = "test_app"
         constraints = [
             UniqueConstraint(fields=["name"], name="unique_prompt_name"),
         ]
@@ -58,36 +58,21 @@ class Prompt(models.Model):
         return chat
 
     def _render(self, message, variables):
-        if variables is None:
-            variables = {}
-
-        # Gather all snippets
         snippets = dict([(s.name, s.content) for s in Snippet.objects.all()])
+        context = snippets | variables
 
-        # Recursively render all snippets
-        rendered_snippets = {}
-        visited = set()
+        def recursive_render(val, context):
+            if isinstance(val, str):
+                prev = None
+                curr = val
+                # Keep rendering until no changes (to handle nested vars)
+                while prev != curr:
+                    prev = curr
+                    curr = jinja2.Template(curr).render(context)
+                return curr
+            return val
 
-        def render_snippet(name):
-            if name in rendered_snippets:
-                return rendered_snippets[name]
-            if name in visited:
-                raise ValueError(f"Circular dependency detected in snippet: {name}")
-
-            visited.add(name)
-            content = snippets.get(name, "")
-
-            # Build context with variables and already-rendered snippets
-            context = {**variables, **rendered_snippets}
-            rendered = jinja2.Template(content).render(context)
-
-            rendered_snippets[name] = rendered
-            visited.remove(name)
-            return rendered
-
-        for name in snippets:
-            render_snippet(name)
-        context = rendered_snippets | variables
+        context = {k: recursive_render(v, context) for k, v in context.items()}
         return jinja2.Template(message).render(context)
 
     def __str__(self):
@@ -118,7 +103,7 @@ class Chat(models.Model):
     stream = models.JSONField(default=default_chat_stream)
 
     class Meta:
-        app_label = 'test_app'
+        app_label = "test_app"
 
     @property
     def messages(self):
@@ -134,7 +119,7 @@ class Snippet(models.Model):
     content = models.TextField()
 
     class Meta:
-        app_label = 'test_app'
+        app_label = "test_app"
         constraints = [
             UniqueConstraint(fields=["name"], name="unique_snippet_name"),
         ]
@@ -146,7 +131,7 @@ class Snippet(models.Model):
 if __name__ == "__main__":
     from django.core.management import call_command
     from django.db import connection
-    
+
     # Create tables manually
     with connection.schema_editor() as schema_editor:
         schema_editor.create_model(Snippet)
@@ -156,15 +141,17 @@ if __name__ == "__main__":
     print("=" * 60)
     print("Test 1: Basic variable in snippet")
     print("=" * 60)
-    
-    Snippet.objects.create(name="greeting", content="Hello {{ name }}!")
+
+    Snippet.objects.create(
+        name="sysprompt", content="You are {{ name }}. A helpful AI Coach"
+    )
     prompt = Prompt.objects.create(
         name="test1",
-        system_prompt="{{ greeting }}",
-        first_message="How can I help you?"
+        system_prompt="{{ sysprompt }}",
+        first_message="How can I help you?",
     )
-    
-    chat = prompt.materialize_chat({"name": "Alice"})
+
+    chat = prompt.materialize_chat({"name": "Nadia"})
     print(f"System: {chat.messages[0]['content']}")
     print(f"Assistant: {chat.messages[1]['content']}")
     print()
@@ -175,16 +162,18 @@ if __name__ == "__main__":
     print("=" * 60)
     print("Test 2: Nested snippets")
     print("=" * 60)
-    
-    Snippet.objects.create(name="greeting", content="Hello {{ name }}!")
-    Snippet.objects.create(name="welcome", content="{{ greeting }} Welcome to our service.")
+
+    Snippet.objects.create(name="whoareyou", content="You are {{ name }}!")
+    Snippet.objects.create(
+        name="welcome", content="{{ whoareyou }} the user wants general assistance."
+    )
     prompt = Prompt.objects.create(
         name="test2",
         system_prompt="{{ welcome }}",
-        first_message="I'm here to assist you."
+        first_message="I'm here to assist you.",
     )
-    
-    chat = prompt.materialize_chat({"name": "Bob"})
+
+    chat = prompt.materialize_chat({"name": "Nadia"})
     print(f"System: {chat.messages[0]['content']}")
     print(f"Assistant: {chat.messages[1]['content']}")
     print()
@@ -195,15 +184,46 @@ if __name__ == "__main__":
     print("=" * 60)
     print("Test 3: Multiple variables")
     print("=" * 60)
-    
-    Snippet.objects.create(name="intro", content="Hi {{ name }}, you are a {{ role }}.")
+
+    Snippet.objects.create(
+        name="intro", content="You are {{ name }}, you are a {{ role }}."
+    )
     prompt = Prompt.objects.create(
         name="test3",
         system_prompt="{{ intro }} Be professional.",
-        first_message="Ready to start!"
+        first_message="How can I assist your SWe needs today?",
     )
-    
-    chat = prompt.materialize_chat({"name": "Charlie", "role": "developer"})
+
+    chat = prompt.materialize_chat(
+        {"name": "Nadia", "role": "helpful AI coach for developers"}
+    )
+    print(f"System: {chat.messages[0]['content']}")
+    print(f"Assistant: {chat.messages[1]['content']}")
+    print()
+
+    print("=" * 60)
+    print("Test 4: Nested variables and snippets")
+    print("=" * 60)
+
+    Snippet.objects.create(
+        name="greeting",
+        content="You are {{ name }}, an AI assistant to {{ user }}. {{ objective }}",
+    )
+    Snippet.objects.create(
+        name="objective", content="Help them accomplish their goal for this {{ time }}"
+    )
+    prompt = Prompt.objects.create(
+        name="test4", system_prompt="{{ greeting }}", first_message="Let's get started."
+    )
+
+    variables = {
+        "name": "Nadia",
+        "user": "Esmeralda, a {{ level }} engineer",
+        "level": "senior",
+        "time": "morning",
+    }
+
+    chat = prompt.materialize_chat(variables)
     print(f"System: {chat.messages[0]['content']}")
     print(f"Assistant: {chat.messages[1]['content']}")
     print()
