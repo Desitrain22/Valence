@@ -1,0 +1,18 @@
+[project]
+name = "valence"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Neal Paresh Patel",email = "59032397+Desitrain22@users.noreply.github.com"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "jinja2 (>=3.1.6,<4.0.0)",
+    "django (>=5.2.8,<6.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
