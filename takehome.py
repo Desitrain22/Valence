@@ -13,7 +13,7 @@ class Prompt(models.Model):
     system_prompt = models.TextField()
     first_message = models.TextField()  # Always an assistant message.
 
-    class Meta: 
+    class Meta:
         constraints = [
             UniqueConstraint(fields=["name"], name="unique_prompt_name"),
         ]
@@ -34,8 +34,41 @@ class Prompt(models.Model):
         return chat
 
     def _render(self, message, variables):
+        if variables is None:
+            variables = {}
+
+        # Gather all snippets
         snippets = dict([(s.name, s.content) for s in Snippet.objects.all()])
-        context = snippets | variables
+
+        # Recursively render all snippets
+        rendered_snippets = {}
+        visited = set()
+
+        def render_snippet(name):
+            if name in rendered_snippets:
+                return rendered_snippets[name]
+            if name in visited:
+                raise ValueError(f"Circular dependency detected in snippet: {name}")
+
+            visited.add(name)
+            content = snippets.get(name, "")
+
+            # Build context with variables and already-rendered snippets
+            context = {**variables, **rendered_snippets}
+            rendered = jinja2.Template(content).render(context)
+
+            rendered_snippets[name] = rendered
+            visited.remove(name)
+            return rendered
+
+        # Render all snippets
+        for name in snippets:
+            render_snippet(name)
+
+        # Merge rendered snippets and variables for final context
+        context = rendered_snippets | variables
+
+        # Render the message with the full context
         return jinja2.Template(message).render(context)
 
     def __str__(self):
@@ -78,7 +111,7 @@ class Snippet(models.Model):
     name = models.CharField(max_length=256)
     content = models.TextField()
 
-    class Meta: 
+    class Meta:
         constraints = [
             UniqueConstraint(fields=["name"], name="unique_snippet_name"),
         ]
