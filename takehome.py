@@ -218,7 +218,8 @@ if __name__ == "__main__":
 
     variables = {
         "name": "Nadia",
-        "user": "Esmeralda, a {{ level }} engineer",
+        "user": "Esmeralda, a {{ level }} {{ job }}",
+        "job": "software engineer",
         "level": "senior",
         "time": "morning",
     }
